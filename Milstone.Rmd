@@ -1,0 +1,173 @@
+---
+title: "Capstone Milestone Report"
+date: "2023-09-30"
+output:
+  html_document:
+    toc: true
+    theme: united
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+
+# load packages
+library(kableExtra); library(readr); library(dplyr); library(ggplot2); 
+library(tidytext); library(stringr); library(tidyr) 
+```
+```{r initialize data, include=FALSE, cache=T}
+# download data if needed
+if (!dir.exists('./data')) {dir.create('./data')}
+
+if (!file.exists('./data/swiftkey.zip')) {
+        fileURL <- "https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+        download.file(fileURL,'./data/swiftkey.zip')
+        unzip('./data/swiftkey.zip',exdir = './data')
+}
+
+# reading and formatting
+blog <- read_lines('./data/final/en_US/en_US.blogs.txt') %>%
+        tibble() %>%
+        mutate(line = row_number())
+blog <- rename(blog, text = names(blog)[1]) %>%
+        mutate(length = nchar(text),
+               words = str_count(text, '\\w+'))
+
+twitter <- read_lines('./data/final/en_US/en_US.twitter.txt') %>%
+        tibble() %>%
+        mutate(line = row_number())
+twitter <- rename(twitter, text = names(twitter)[1]) %>%
+        mutate(length = nchar(text),
+               words = str_count(text, '\\w+'))
+
+news <- read_lines('./data/final/en_US/en_US.news.txt') %>%
+        tibble() %>%
+        mutate(line = row_number())
+news <- rename(news, text = names(news)[1]) %>%
+        mutate(length = nchar(text),
+               words = str_count(text, '\\w+'))
+```
+
+## Introduction
+
+This is a milestone report of the capstone project for JHU's Data Science Specialization program at Coursera. The project is develop a Shiny app that will take a phrase (multiple words) as input, and predict the next word. This will be achieved using an n-gram language model trained on a dataset provided by the course.
+
+The purpose of the milestone is present an exploratory data analysis of the dataset.
+
+## Dataset
+### Description
+The data can be found at [Coursera](https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip). This data is from a corpus called HC Corpora; the data is organized into four locales: en_US, de_DE, ru_RU and fi_FI. For the purposes of the Capstone, only the en_US locale will be used.
+
+### English Locale Details
+The following are the details of the three files in the English locale:
+```{r table, echo = F, cache=T}
+filelist <- dir("./data/final/en_US", full.names = T)
+fileinfo <- data.frame(file = filelist,
+                       size = round(file.info(filelist)$size/1024^2, 2),
+                       lines = c(nrow(blog), nrow(news), nrow(twitter)),
+                       length = c(sum(blog$length), sum(news$length), sum(twitter$length)),
+                       words = c(sum(blog$words), sum(news$words), sum(twitter$words)))
+kable(fileinfo, col.names = c("File", "Size (MB)", "Total Lines", "Total Characters", "Total Words"))  %>%
+      kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive", "bordered"), 
+          full_width = FALSE)
+```
+The total size of all three files is around 550 MB, with over 3 million lines of text. Thus the dataset used will be a 2% random sample from the three files.
+```{r dataset, echo=F, cache=T}
+set.seed(2023)
+blog <- slice_sample(blog, prop = 0.02)
+news <- slice_sample(news, prop = 0.02)
+twitter <- slice_sample(twitter, prop = 0.02)
+dataset <- bind_rows(blog, news, twitter)
+```
+
+### Cleaning
+The `tidytext` package will format the dataset into a [tidy text](https://www.tidytextmining.com/tidytext) format. This will sort the data into various n-grams for analysis, with common words such as "the" removed; ie, stop words.
+```{r tidy text, echo=F, message=F, cache=T}
+tidyset <- unnest_tokens(dataset[1], word, text)
+cleanset <- anti_join(tidyset,get_stopwords())
+cleancount <- count(cleanset,word, sort = T)
+```
+```{r bigram, echo=F, cache=T}
+bigrams <- dataset %>%
+        unnest_tokens(bigram, text, token = "ngrams", n = 2) %>%
+        filter(!is.na(bigram)) %>%
+        separate(bigram, c("word1", "word2"), sep = " ") %>%
+        filter(!word1 %in% stop_words$word) %>%
+        filter(!word2 %in% stop_words$word) %>%
+        unite(bigram, word1, word2, sep = " ") %>%
+        count(bigram, sort = T)
+```
+```{r trigram, echo=F, cache=T}
+trigrams <- dataset %>%
+        unnest_tokens(trigram, text, token = "ngrams", n = 3) %>%
+        filter(!is.na(trigram)) %>%
+        separate(trigram, c("word1", "word2", "word3"), sep = " ") %>%
+        filter(!word1 %in% stop_words$word,
+               !word2 %in% stop_words$word,
+               !word3 %in% stop_words$word) %>%
+        unite(trigram, word1, word2, word3, sep = " ") %>%
+        count(trigram, sort = T)
+```
+
+## Analysis
+### Single Words (Unigrams)
+The total number of words in the dataset is:
+```{r word count, echo=F}
+sum(cleancount$n)
+```
+The number of unqiue words in the dataset is:
+```{r unique words, echo=F}
+nrow(cleancount)
+```
+Below are the ten most used words in our dataset:
+```{r table 2, echo=F}
+kable(cleancount[1:10,], col.names = c("Word", "Frequency"))  %>%
+      kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive", "bordered"), 
+          full_width = FALSE)
+```
+And a bar graph of the 20 most used words:
+```{r bar 1, echo=F, fig.align='center'}
+g <- ggplot(cleancount[1:20,])
+g + geom_bar(aes(reorder(word,-n), n), stat = 'identity', fill = 'cadetblue') +
+        ggtitle('Top 20 Frequent Words') + xlab("") + ylab("Frequency") +
+        theme(axis.text.x = element_text(angle = 90))
+```
+
+### Bigrams
+Below are the ten most used bigrams in our dataset:
+```{r table 3, echo=F}
+kable(bigrams[1:10,], col.names = c("Bigram", "Frequency"))  %>%
+      kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive", "bordered"), 
+          full_width = FALSE)
+```
+And a bar graph of the them:
+```{r bar 2, echo=F, fig.align='center'}
+g <- ggplot(bigrams[1:10,])
+g + geom_bar(aes(reorder(bigram,-n), n), stat = 'identity', fill = 'lightpink3') +
+        ggtitle('Top 10 Bigrams') + xlab("") + ylab("Frequency") +
+        theme(axis.text.x = element_text(angle = 90))
+```
+
+### Trigrams
+Below are the ten most used bigrams in our dataset:
+```{r table 4, echo=F}
+kable(trigrams[1:10,], col.names = c("Trigram", "Frequency"))  %>%
+      kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive", "bordered"), 
+          full_width = FALSE)
+```
+And a bar graph of the them:
+```{r bar 3, echo=F, fig.align='center'}
+g <- ggplot(trigrams[1:10,])
+g + geom_bar(aes(reorder(trigram,-n), n), stat = 'identity', fill = 'palegreen3') +
+        ggtitle('Top 10 Trigrams') + xlab("") + ylab("Frequency") +
+        theme(axis.text.x = element_text(angle = 90))
+```
+
+## Conclusions
+From this dataset, one would need about 1000 unique words to cover 50% of all word instances, and 16000 unqiue words for 90% coverage.
+
+As expected from a US locale source, US location names that consist of two words are some of the more common bigrams, along with "president barack obama' as the second most frequent trigram. 
+
+Although "happy mother's day" is the most occuring trigram in the dataset, "happy father's day" is not in the top 10.
+
+## Appendix
+The Rmd file for this report can be found at my [Github](https://github.com/randonmess/JHU-Data-Science-Capstone)
