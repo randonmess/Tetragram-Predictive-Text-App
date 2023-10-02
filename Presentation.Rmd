@@ -1,0 +1,28 @@
+---
+title: "Capstone Project: Predictive Language Modelling"
+date: "2023-10-02"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+## The Shiny App
+The shiny app can found [here](https://randomess.shinyapps.io/Ngram/). It is a simple app where the user types an incomplete sentence and the app will predict the next word of the sentence. The app uses a basic N-gram model trained on the [text](https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip) provided by SwiftKey via Coursera.
+
+## N-grams
+After cleaning the text, for the purposes of efficiency, 2% of the total text was used to train the model, a total of around 85,000 lines of text. 
+
+The R package `tidytext` was used to create a list of all instances of words, and consecutive sequences of two, three, and four words in the text. These are called unigrams, bigrams, trigrams, and quadgrams respectively.
+
+## Prediction
+Prediction using an **n**-gram relies on the *Markov assumption*, that the next word in a sentence only depends on the **n-1** words preceding it. 
+
+- For example, using a **quad**gram to predict will only use the last **three** words of the sentence to do so.
+
+Thus the app will take the last three words of the user input, search in the `quadgrams` list for all matching quadrams that start with those three words, and return the 4th word of the highest occurring matching quadgram as the prediction of the next word.
+
+## Considerations
+In the case where no matching quadgram exists, then the model will perform a *back-off*. It will then search in the `trigrams` and attempt to predict based off the last *two* words instead. The model will continue to back-off if necessary, and will return a list of the ten most occurring words in the training text if no predictions can be found after backing-off.
+
+Ultimately, n-gram predictive models are not very good for accuracy or efficiency, most modern predictive language models use neural networks; this model was only 14% accurate when tested against 1000 sampled quadgrams from the original text.
