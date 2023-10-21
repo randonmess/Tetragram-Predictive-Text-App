@@ -5,3 +5,10 @@ See the [github pages](https://randonmess.github.io/JHU-Data-Science-Capstone/) 
 ## Shiny App
 The shiny app can found [here](https://randomess.shinyapps.io/Ngram/)
 ## Files in Repository
+- `Ngram` folder:
+  - ui.R` and `server.R`: scripts for Shiny app
+  - `data` folder: n-gram models
+- `Milstone.Rmd`: R markdown file for the milestone report
+- `Presentation.Rmd`: R markdown file for the executive slides
+- `index.html`: github pages html file
+- `ngram-model.R`: Code to download and clean corpus, and make n-gram models
